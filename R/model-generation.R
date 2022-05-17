@@ -42,6 +42,7 @@ recursion <- function(tree, current_node, current_length, size, env) {
   children <- edge_list[edge_list[, 1] == current_node, 2]
   left <- children[1]
   right <- children[2]
+
   if (!(left %in% tree$tip.label) && !is.na(left)){
     length <- tree$edge.length[edge_list[, 1] == current_node & edge_list[, 2] == left] * 100 + current_length
     env$populations[[left]] <- population(left, time = length, N = size, parent = env$populations[[current_node]])
