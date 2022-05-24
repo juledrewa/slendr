@@ -19,7 +19,7 @@ tree_populations <- function(tree, size, simulation_length) {
   root <- length(tree$tip.label) + 1
   env$populations[[root]] <- population(paste0("pop", root), time = 1, N = size)
 
-  recursion(tree, root, size, env, scale)
+  recursion(tree, root, env$populations[[root]], size, env, scale)
   env$populations <- env$populations[-which(sapply(env$populations, is.null))]
   env$populations
 }
@@ -42,22 +42,23 @@ random_model <- function(n, pop_size, n_gene_flow, simulation_length, rate = c(0
   tree_model(tree, pop_size, n_gene_flow, simulation_length, rate)
 }
 
-recursion <- function(tree, current_node, size, env, scale) {
+recursion <- function(tree, current_node, parent_population, size, env, scale) {
   edge_list <- tree$edge
   children <- edge_list[edge_list[, 1] == current_node, 2]
   left <- children[1]
   right <- children[2]
 
   if (!(left %in% tree$tip.label) && !is.na(left)){
-    length <- ceiling(node.depth.edgelength(tree)[left] * scale)
-    env$populations[[left]] <- population(paste0("pop", left), time = length, N = size, parent = env$populations[[current_node]])
+    length <- ceiling(node.depth.edgelength(tree)[left] * scale) + 1
+    env$populations[[left]] <- population(paste0("pop", left), time = length, N = size, parent = parent_population)
 
-    recursion(tree, left, size, env, scale)
+    recursion(tree, left, env$populations[[left]], size, env, scale)
   }
   if (!(right %in% tree$tip.label) && !is.na(right)){
     length <- ceiling(node.depth.edgelength(tree)[right] * scale)
+    print(right)
     #env$populations[[right]] <- population(paste0("pop", right), time = length, N = size, parent = env$populations[[current_node]])
-    recursion(tree, right, size, env, scale)
+    recursion(tree, right, parent_population, size, env, scale)
   }
 }
 
