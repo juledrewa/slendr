@@ -5,7 +5,7 @@ library(phytools)
 devtools::load_all(".")
 
 
-tree_populations <- function(tree, size, height) {
+tree_populations <- function(tree, size, simulation_length) {
   # plot to check
   plot(tree, show.tip.label = F)
   nodelabels()
@@ -13,39 +13,37 @@ tree_populations <- function(tree, size, height) {
 
   env <- new.env()
   env$populations <- vector(mode="list", length=tree$Nnode + length(tree$tip.label))
+  # change to list
 
-
-  scale <- floor(height/sum(tree$edge.length))
+  scale <- floor((3*simulation_length/4)/max(node.depth.edgelength(tree)))
+  #scale <- floor(simulation_length/sum(tree$edge.length))
 
   root <- length(tree$tip.label) + 1
   env$populations[[root]] <- population(paste0("pop", root), time = 1, N = size)
 
   recursion(tree, root, size, env, scale)
-
+  print(env$populations)
+  env$populations <- env$populations[-which(sapply(env$populations, is.null))]
+  print(env$populations)
   env$populations
 }
 
-random_populations <- function(n, size, height) {
+random_populations <- function(n, size, simulation_length) {
   tree <- rtree(n)
-  populations <- tree_populations(tree, size, height)
+  populations <- tree_populations(tree, size, simulation_length)
 }
 
-tree_model <- function(tree, pop_size, n_gene_flow, height) {
-  populations <- tree_populations(tree, pop_size, height)
-  gf <- random_gene_flow(populations, n_gene_flow, height)
-  model <- compile_model(populations = populations, gene_flow = gf, generation_time = 1, sim_length = height)
+tree_model <- function(tree, pop_size, n_gene_flow, simulation_length, rate = c(0.01, 0.99)) {
+  populations <- tree_populations(tree, pop_size, simulation_length)
+  gf <- random_gene_flow(populations, n_gene_flow, simulation_length, rate)
+  model <- compile_model(populations = populations, gene_flow = gf, generation_time = 1, sim_length = simulation_length)
   model
 }
 
-random_model <- function(n, pop_size, n_gene_flow, height) {
-  populations <- random_populations(n, pop_size, height)
-  gf <- random_gene_flow(populations, n_gene_flow, height)
-  model <- compile_model(populations = populations, gene_flow = gf, generation_time = 1, sim_length = height)
-  model
+random_model <- function(n, pop_size, n_gene_flow, simulation_length, rate = c(0.01, 0.99)) {
 
-  ### alternative
-  # tree <- rtree(n)
-  # tree_model(tree, pop_size, n_gene_flow, height)
+  tree <- rtree(n)
+  tree_model(tree, pop_size, n_gene_flow, simulation_length, rate)
 }
 
 recursion <- function(tree, current_node, size, env, scale) {
@@ -62,14 +60,13 @@ recursion <- function(tree, current_node, size, env, scale) {
   }
   if (!(right %in% tree$tip.label)&& !is.na(right)){
     length <- ceiling(tree$edge.length[edge_list[, 1] == current_node & edge_list[, 2] == right] * scale) + attr(env$populations[[current_node]], "history")[[1]]$time
-    env$populations[[right]] <- population(paste0("pop", right), time = length, N = size, parent = env$populations[[current_node]])
-
+    #env$populations[[right]] <- population(paste0("pop", right), time = length, N = size, parent = env$populations[[current_node]])
     recursion(tree, right, size, env, scale)
   }
 }
 
-random_gene_flow <- function(populations, n, height) {
-  gf <- list()
+random_gene_flow <- function(populations, n, simulation_length, rate) {
+  gf <- vector(mode = "list", length = n)
   for(i in 1:n) {
     number1 <- sample(1:length(populations), 1)
     number2 <- sample(1:length(populations), 1)
@@ -81,9 +78,14 @@ random_gene_flow <- function(populations, n, height) {
     time1 <- attr(pop1, "history")[[1]]$time
     time2 <- attr(pop2, "history")[[1]]$time
     max_time <- max(time1, time2)
-    start_gf <- sample((max_time + 1):(height - 2), 1)
-    end_gf <- sample((start_gf + 1):(height - 1), 1)
-    gf <- append(gf, list(gene_flow(from = pop1, to = pop2, start = start_gf, end = end_gf, rate = 0.2)))
+    start_gf <- sample((max_time + 1):(simulation_length - 2), 1)
+    end_gf <- sample((start_gf + 1):(simulation_length), 1)
+    if (length(rate) == 2){
+      rate_gf <- runif(1, rate[1], rate[2])
+    } else {
+      rate_gf <- rate
+    }
+    gf[[i]] <- gene_flow(from = pop1, to = pop2, start = start_gf, end = end_gf, rate_gf)
   }
   return(gf)
 }
@@ -92,7 +94,8 @@ random_gene_flow <- function(populations, n, height) {
 tree <- rtree(3)
 pops <- tree_populations(tree, 1000, 50)
 pops2 <- random_populations(3, 1000, 100)
-model <- tree_model(tree, 1000, 3, 100)
-model2 <- random_model(3, 1000, 2, 100)
-plot_model(model)
-plot_model(model2)
+model <- tree_model(tree, 1000, 3, 100, c(0.2, 0.9))
+model2 <- random_model(3, 1000, 2, 1000, 0.5)
+plot_model(model, proportions = TRUE)
+plot_model(model2, proportions = TRUE)
+
