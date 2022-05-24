@@ -13,18 +13,14 @@ tree_populations <- function(tree, size, simulation_length) {
 
   env <- new.env()
   env$populations <- vector(mode="list", length=tree$Nnode + length(tree$tip.label))
-  # change to list
 
   scale <- floor((3*simulation_length/4)/max(node.depth.edgelength(tree)))
-  #scale <- floor(simulation_length/sum(tree$edge.length))
 
   root <- length(tree$tip.label) + 1
   env$populations[[root]] <- population(paste0("pop", root), time = 1, N = size)
 
   recursion(tree, root, size, env, scale)
-  print(env$populations)
   env$populations <- env$populations[-which(sapply(env$populations, is.null))]
-  print(env$populations)
   env$populations
 }
 
@@ -53,13 +49,13 @@ recursion <- function(tree, current_node, size, env, scale) {
   right <- children[2]
 
   if (!(left %in% tree$tip.label) && !is.na(left)){
-    length <- ceiling(tree$edge.length[edge_list[, 1] == current_node & edge_list[, 2] == left] * scale) + attr(env$populations[[current_node]], "history")[[1]]$time
+    length <- ceiling(node.depth.edgelength(tree)[left] * scale)
     env$populations[[left]] <- population(paste0("pop", left), time = length, N = size, parent = env$populations[[current_node]])
 
     recursion(tree, left, size, env, scale)
   }
-  if (!(right %in% tree$tip.label)&& !is.na(right)){
-    length <- ceiling(tree$edge.length[edge_list[, 1] == current_node & edge_list[, 2] == right] * scale) + attr(env$populations[[current_node]], "history")[[1]]$time
+  if (!(right %in% tree$tip.label) && !is.na(right)){
+    length <- ceiling(node.depth.edgelength(tree)[right] * scale)
     #env$populations[[right]] <- population(paste0("pop", right), time = length, N = size, parent = env$populations[[current_node]])
     recursion(tree, right, size, env, scale)
   }
@@ -91,11 +87,12 @@ random_gene_flow <- function(populations, n, simulation_length, rate) {
 }
 
 # test calls
-tree <- rtree(3)
+tree <- rtree(4)
 pops <- tree_populations(tree, 1000, 50)
 pops2 <- random_populations(3, 1000, 100)
 model <- tree_model(tree, 1000, 3, 100, c(0.2, 0.9))
 model2 <- random_model(3, 1000, 2, 1000, 0.5)
 plot_model(model, proportions = TRUE)
 plot_model(model2, proportions = TRUE)
+
 
