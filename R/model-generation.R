@@ -1,10 +1,3 @@
-library(phangorn)
-library(ape)
-library(phytools)
-
-
-devtools::load_all(".")
-
 #' Create a list of slendr populations according to a given tree. Starting from
 #' the root, the tree is traversed recursively and a new population is created
 #' for every left child of a given node.
@@ -19,21 +12,21 @@ devtools::load_all(".")
 #'   accordingly
 #' @return List of slendr populations
 #' @examples
-#' tree <- rtree(4)
+#' tree <- ape::rtree(4)
 #' tree_populations(tree, 1000, 50)
-#' tree <- rtree(6)
+#' tree <- ape::rtree(6)
 #' tree_populations(tree, 200, 500)
 tree_populations <- function(tree, population_size, simulation_length) {
   # plot to check
-  plot(tree, show.tip.label = F)
-  nodelabels()
-  tiplabels()
+  # plot(tree, show.tip.label = F)
+  # nodelabels()
+  # tiplabels()
 
   env <- new.env()
   env$populations <- vector(mode="list", length=tree$Nnode +
                               length(tree$tip.label))
   ## TODO explain
-  scale <- floor((3*simulation_length/4)/max(node.depth.edgelength(tree)))
+  scale <- floor((3*simulation_length/4)/max(ape::node.depth.edgelength(tree)))
 
   root <- length(tree$tip.label) + 1
   env$populations[[root]] <- population(paste0("pop", root), time = 1,
@@ -60,7 +53,7 @@ tree_populations <- function(tree, population_size, simulation_length) {
 #' tree_populations(6, 200, 500)
 random_populations <- function(n_populations, population_size, simulation_length) {
   # todo: sanity check: if (npops < 1) stop(...), stop("blah blah", call. = FALSE)
-  tree <- rtree(n_populations)
+  tree <- ape::rtree(n_populations)
   populations <- tree_populations(tree, population_size, simulation_length)
   return(populations)
 }
@@ -80,9 +73,9 @@ random_populations <- function(n_populations, population_size, simulation_length
 #'   accordingly
 #' @return A slendr model
 #' @examples
-#' tree <- rtree(4)
+#' tree <- ape::rtree(4)
 #' tree_model(tree, 1000, 3, 0.5, 100)
-#' tree <- rtree(6)
+#' tree <- ape::rtree(6)
 #' tree_model(tree, 200, 4, c(0.2, 0.9), 1000)
 tree_model <- function(tree, population_size, n_gene_flow,
                        rate_gene_flow = c(0.01, 0.99), simulation_length) {
@@ -115,7 +108,7 @@ tree_model <- function(tree, population_size, n_gene_flow,
 random_model <- function(n_populations, population_size, n_gene_flow,
                          rate_gene_flow = c(0.01, 0.99), simulation_length) {
 
-  tree <- rtree(n_populations)
+  tree <- ape::rtree(n_populations)
   model <- tree_model(tree, population_size, n_gene_flow,
                       rate_gene_flow, simulation_length)
   return(model)
@@ -130,7 +123,7 @@ recursion <- function(tree, current_node, parent_population, population_size,
   right <- children[2]
 
   if (!is.na(left)){
-    length <- ceiling(node.depth.edgelength(tree)[left] * scale)
+    length <- ceiling(ape::node.depth.edgelength(tree)[left] * scale)
     if(length == attr(parent_population, "history")[[1]]$time) {
       length <- length + 1
     }
@@ -141,7 +134,7 @@ recursion <- function(tree, current_node, parent_population, population_size,
     recursion(tree, left, env$populations[[left]], population_size, env, scale)
   }
   if (!is.na(right)){
-    length <- floor(node.depth.edgelength(tree)[right] * scale) + 1
+    length <- floor(ape::node.depth.edgelength(tree)[right] * scale) + 1
     #env$populations[[right]] <- population(paste0("pop", right), time = length,
     #N = population_size, parent = env$populations[[current_node]])
     recursion(tree, right, parent_population, population_size, env, scale)
@@ -176,11 +169,11 @@ random_gene_flow <- function(populations, n, rate, simulation_length) {
 }
 
 # test calls
-tree <- rtree(4)
-pops <- tree_populations(tree, 1000, 50)
-pops2 <- random_populations(3, 1000, 100)
-model <- tree_model(tree, 1000, 3, c(0.2, 0.9), 100)
-model2 <- random_model(3, 1000, 2, 0.5, 1000)
-plot_model(model, proportions = TRUE)
-plot_model(model2, proportions = TRUE)
+#tree <- ape::rtree(4)
+#pops <- tree_populations(tree, 1000, 50)
+#pops2 <- random_populations(3, 1000, 100)
+#model <- tree_model(tree, 1000, 3, c(0.2, 0.9), 100)
+#model2 <- random_model(3, 1000, 2, 0.5, 1000)
+# plot_model(model, proportions = TRUE)
+# plot_model(model2, proportions = TRUE)
 
