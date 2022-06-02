@@ -8,6 +8,7 @@ test_that("number of populations in tree_populations", {
   tree <- rtree(4)
   tree_pops <- tree_populations(tree, 1000, 50)
   expect_equal(length(tree_pops), 4)
+  # 1, 0
 })
 
 test_that("number of populations in random_populations", {
@@ -42,6 +43,9 @@ test_that("number of gene flow events in random_model", {
   expect_equal(nrow(random_model$geneflow), 4)
 })
 
+
+# todo test range and fixed value
+
 test_that("simulation length in tree_model", {
   tree <- rtree(3)
   tree_model <- tree_model(tree, 1000, 3, c(0.2, 0.9), 100)
@@ -51,4 +55,6 @@ test_that("simulation length in tree_model", {
 test_that("simulation length in random_model", {
   random_model <- random_model(6, 1000, 4, c(0.2, 0.9), 1000)
   expect_equal(random_model$orig_length, 1000)
+
+# todo test to make sure that populations not created after simulation ends
 })

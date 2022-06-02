@@ -9,6 +9,8 @@ devtools::load_all(".")
 #' the root, the tree is traversed recursively and a new population is created
 #' for every left child of a given node.
 #'
+#' todo explain in more detail (z.b. 3/4)
+#'
 #' @param tree An ape tree
 #' @param population_size Integer number defining the populations size of all
 #'   populations
@@ -22,7 +24,6 @@ devtools::load_all(".")
 #' tree <- rtree(6)
 #' tree_populations(tree, 200, 500)
 tree_populations <- function(tree, population_size, simulation_length) {
-
   # plot to check
   plot(tree, show.tip.label = F)
   nodelabels()
@@ -31,7 +32,7 @@ tree_populations <- function(tree, population_size, simulation_length) {
   env <- new.env()
   env$populations <- vector(mode="list", length=tree$Nnode +
                               length(tree$tip.label))
-
+  ## TODO explain
   scale <- floor((3*simulation_length/4)/max(node.depth.edgelength(tree)))
 
   root <- length(tree$tip.label) + 1
@@ -58,7 +59,7 @@ tree_populations <- function(tree, population_size, simulation_length) {
 #' tree_populations(4, 1000, 50)
 #' tree_populations(6, 200, 500)
 random_populations <- function(n_populations, population_size, simulation_length) {
-
+  # todo: sanity check: if (npops < 1) stop(...), stop("blah blah", call. = FALSE)
   tree <- rtree(n_populations)
   populations <- tree_populations(tree, population_size, simulation_length)
   return(populations)
