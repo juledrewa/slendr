@@ -34,7 +34,7 @@ tree_populations <- function(tree, population_size, simulation_length) {
   # scale defined by maximum edge length of the tree and given simulation length
   # only 3/4 of this scale used, so that all populations exist at least for 1/4
   # of the simulation
-  scale <- floor((3*simulation_length/4)/max(ape::node.depth.edgelength(tree)))
+  scale <- floor(3/4*simulation_length/max(ape::node.depth.edgelength(tree)))
 
   # create ancestral population
   root <- length(tree$tip.label) + 1
