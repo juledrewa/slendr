@@ -106,8 +106,8 @@ random_populations <- function(n_populations, population_size,
 tree_model <- function(tree, population_size, n_gene_flow,
                        rate_gene_flow = c(0.01, 0.99), simulation_length) {
 
-  populations <- tree_populations(tree, population_size, simulation_length)
-  gf <- random_gene_flow(populations, n_gene_flow, rate_gene_flow,
+  populations <- tree_populations2(tree, population_size, simulation_length)
+  gf <- gene_flow_2(populations, n_gene_flow, rate_gene_flow,
                          simulation_length)
   model <- compile_model(populations = populations, gene_flow = gf,
                          generation_time = 1, sim_length = simulation_length)
@@ -205,4 +205,106 @@ random_gene_flow <- function(populations, n, rate, simulation_length) {
     }
   }
   return(gf)
+}
+
+gene_flow_2 <- function(populations, n, rate, simulation_length) {
+  gf <- vector(mode = "list", length = n)
+  if (n != 0){
+    for(i in 1:n) {
+      creation_times <- sapply(populations, function(p) attr(p, "history")[[1]]$time)
+      start_gf <- sample((min(creation_times[creation_times > 1]) + 1):(simulation_length - 2), 1)
+      end_gf <- start_gf + 1
+      possible <- list()
+      j = 1
+      for (p in populations) {
+        if (p$time < start_gf) {
+          possible[[j]] <- p
+          j = j + 1
+        }
+      }
+      number1 <- sample(1:length(possible), 1)
+      number2 <- sample(1:length(possible), 1)
+      # check that gene flow not between same population
+      while(number1 == number2){
+        number2 <- sample(1:length(possible), 1)
+      }
+      pop1 <- possible[[number1]]
+      pop2 <- possible[[number2]]
+
+      # given rate of gene flow can be either list of min/max or single value
+      if (length(rate) == 2){
+        if (rate[1] > rate[2]) {
+          stop("No valid range for gene flow rate", call. = FALSE)
+        }
+        rate_gf <- runif(1, rate[1], rate[2])
+      } else {
+        rate_gf <- rate
+      }
+
+      gf[[i]] <- gene_flow(from = pop1, to = pop2, start = start_gf,
+                           end = end_gf, rate_gf)
+    }
+  }
+  return(gf)
+}
+
+tree_populations2 <- function(tree, population_size, simulation_length) {
+
+  if (length(tree$tip.label) + tree$Nnode < 3) {
+    stop("At least 2 populations must be created", call. = FALSE)
+  }
+
+  env <- new.env()
+
+  root <- length(tree$tip.label) + 1
+
+  creation_times <- sample (3:(simulation_length - 3), size=tree$Nnode + length(tree$tip.label) - 1, replace = F)
+  creation_times <- append(creation_times, 2)
+  sorted_creation_times_temp <- sort(creation_times)
+  depths <- ape::node.depth.edgelength(tree)
+  order_depths <- order(depths)
+
+  sorted_creation_times <- sorted_creation_times_temp[order(order_depths)]
+
+  env$populations <- vector(mode="list", length=tree$Nnode +
+                              length(tree$tip.label) + 1)
+
+  # create ancestral population
+  env$populations[[length(env$populations)]] <- population(paste0("pop", 0), time = 1,
+                                                           N = population_size)
+  # create first split
+  root <- length(tree$tip.label) + 1
+  env$populations[[root]] <- population(paste0("pop", root), time = 2,
+                                        N = population_size, parent = env$populations[[length(env$populations)]])
+
+  # recurse through tree
+  recursion2(tree, root, env$populations[[root]], population_size, env, sorted_creation_times)
+
+  # remove empty populations from list
+  env$populations <- env$populations[-which(sapply(env$populations, is.null))]
+
+  return(env$populations)
+}
+
+recursion2 <- function(tree, current_node, parent_population, population_size,
+                       env, sorted_creation_times) {
+
+  edge_list <- tree$edge
+  children <- edge_list[edge_list[, 1] == current_node, 2]
+  left <- children[1]
+  right <- children[2]
+
+  if (!is.na(left)){
+
+    length <- sorted_creation_times[[left]]
+    length
+    env$populations[[left]] <- population(paste0("pop", left), time = sorted_creation_times[[left]],
+                                          N = population_size,
+                                          parent = parent_population)
+
+    recursion2(tree, left, env$populations[[left]], population_size, env, sorted_creation_times)
+  }
+  if (!is.na(right)){
+    recursion2(tree, right, parent_population, population_size, env, sorted_creation_times)
+  }
 }
