@@ -1,38 +1,137 @@
 # variable for the length of the ancestral population existing by itself
 burn_in <- 2
 
-set_burn_in <- function(value) {
-  burn_in <- value
+#' Create populations based on given tree
+#'
+#' Creates a list of slendr populations according to a given tree. An ancestral
+#' population is created, that exists for a specific burn-in time. Then the
+#' populations specified by the tree are added. The root defines the first split
+#' of a population from the ancestral population. It is created at the burn-in
+#' time. The creation times for all other populations are sampled in the
+#' beginning. They are randomly chosen in the interval of one generation after
+#' the burn-in until three generations before the end of the simulation (to
+#' allow gene flow). Starting from the root, the tree is traversed recursively
+#' and a new population is created for every left child of a given node. The
+#' right branch is the branch where the parent population continues. All
+#' populations continue to exist from the time they were created.
+#'
+#' @param tree An ape tree
+#' @param population_size Integer number defining the populations size of all
+#'   populations
+#' @param simulation_length Integer number defining on how long the simulation
+#'   of the populations will last, to scale the edge lengths of the tree
+#'   accordingly
+#' @return List of slendr populations
+#' @examples
+#' tree <- ape::rtree(4)
+#' tree_populations(tree = tree, population_size = 1000, simulation_length = 50)
+#' tree <- ape::rtree(6)
+#' tree_populations(tree = tree, population_size = 200, simulation_length = 500)
+tree_populations <- function(tree, population_size, simulation_length) {
+
+  if (length(tree$tip.label) + tree$Nnode < 3) {
+    stop("At least 2 populations must be created", call. = FALSE)
+  }
+
+  # sample creation times
+  # first possible creation time is 1 generation after the burn-in time
+  # last possible creation time is 3 generation before the simulation ends
+  # (to leave time for one gene flow event)
+  # the number of creation times needed is defined by the amount of nodes in the
+  # tree - 1, because the creation time of the root is already specified by the
+  # burn-in
+  # replace is set to false as only one population can be created at given time
+  creation_times <- sample ((burn_in + 1):(simulation_length - 3),
+                            size = tree$Nnode + length(tree$tip.label) - 1,
+                            replace = FALSE)
+  # the creation time for the root is added
+  creation_times <- append(creation_times, burn_in)
+
+  # the idea now is that the node in the tree with the smallest depth has the
+  # the creation times are sorted to know which is the earliest
+  sorted_creation_times_temp <- sort(creation_times)
+  # get the order of the depths of the node
+  order_depths <- order(ape::node.depth.edgelength(tree))
+  # the order can be used to move the sorted creation times into the position
+  # corresponding to the ordered node depths
+  # the smallest creation time is now at the index of the population with the
+  # smallest depth in the tree
+  sorted_creation_times <- sorted_creation_times_temp[order(order_depths)]
+
+  # create a new environment object (needed to adjust populations in recursion)
+  env <- new.env()
+  # create an empty list of populations within the new environment
+  env$populations <- vector(mode="list", length=tree$Nnode +
+                              length(tree$tip.label) + 1)
+
+  # create the ancestral population in generation 1
+  env$populations[[length(env$populations)]] <- population(paste0("pop", 0),
+                                                           time = 1,
+                                                           N = population_size)
+  # create a new population for first split at root node
+  # creation time is the burn-in variable, the parent is the ancestral population
+  root <- length(tree$tip.label) + 1
+  env$populations[[root]] <- population(paste0("pop", root), time = burn_in,
+                                        N = population_size,
+                                        parent = env$populations[[length(env$populations)]])
+
+  # recurse through tree
+  recursion(tree = tree, current_node = root,
+            parent_population = env$populations[[root]],
+            population_size = population_size,
+            env = env,
+            creation_times = sorted_creation_times)
+
+  # remove empty populations from list
+  env$populations <- env$populations[-which(sapply(env$populations, is.null))]
+
+  return(env$populations)
 }
 
-# tree_populations <- function(tree, population_size, simulation_length) {
-#
-#   if (length(tree$tip.label) + tree$Nnode < 3) {
-#     stop("At least 2 populations must be created", call. = FALSE)
-#   }
-#
-#   env <- new.env()
-#   env$populations <- vector(mode="list", length=tree$Nnode +
-#                               length(tree$tip.label))
-#
-#   # scale defined by maximum edge length of the tree and given simulation length
-#   # only 3/4 of this scale used, so that all populations exist at least for 1/4
-#   # of the simulation
-#   scale <- floor(3/4*simulation_length/max(ape::node.depth.edgelength(tree)))
-#
-#   # create ancestral population
-#   root <- length(tree$tip.label) + 1
-#   env$populations[[root]] <- population(paste0("pop", root), time = 1,
-#                                         N = population_size)
-#
-#   # recurse through tree
-#   recursion(tree, root, env$populations[[root]], population_size, env, scale)
-#
-#   # remove empty populations from list
-#   env$populations <- env$populations[-which(sapply(env$populations, is.null))]
-#
-#   return(env$populations)
-# }
+tree_populations2 <- function(tree, population_size, simulation_length) {
+
+  if (length(tree$tip.label) + tree$Nnode < 3) {
+    stop("At least 2 populations must be created", call. = FALSE)
+  }
+
+  # get a list of the depths of all nodes in the tree
+  depths <- ape::node.depth.edgelength(tree)
+  # calculate a scale to adjust the depths so that the one with the max depth
+  # is created 3 generations before the simulation ends (to allow gene flow)
+  scale <- floor((simulation_length-3)/max(depths))
+  # save the creation times as the depths adjusted by the scale
+  creation_times <- as.integer(depths * scale)
+
+  # create a new environment object (needed to adjust populations in recursion)
+  env <- new.env()
+  # create an empty list of populations within the new environment
+  env$populations <- vector(mode="list", length=tree$Nnode +
+                              length(tree$tip.label) + 1)
+
+  # create the ancestral population in generation 1
+  env$populations[[length(env$populations)]] <- population(paste0("pop", 0),
+                                                           time = 1,
+                                                           N = population_size)
+  # create a new population for first split at root node
+  # creation time is the burn-in variable, the parent is the ancestral population
+  root <- length(tree$tip.label) + 1
+  env$populations[[root]] <- population(paste0("pop", root), time = burn_in,
+                                        N = population_size,
+                                        parent = env$populations[[length(env$populations)]])
+
+  # recurse through tree
+  recursion(tree = tree, current_node = root,
+            parent_population = env$populations[[root]],
+            population_size = population_size,
+            env = env,
+            creation_times = creation_times)
+
+  # remove empty populations from list
+  env$populations <- env$populations[-which(sapply(env$populations, is.null))]
+
+  return(env$populations)
+}
+
 
 #' Create random populations
 #'
@@ -128,6 +227,45 @@ random_model <- function(n_populations, population_size, n_gene_flow,
   return(model)
 }
 
+recursion <- function(tree, current_node, parent_population, population_size,
+                      env, creation_times) {
+
+  # find children of current node
+  edge_list <- tree$edge
+  children <- edge_list[edge_list[, 1] == current_node, 2]
+  left <- children[1]
+  right <- children[2]
+
+  # if the left child is a node
+  if (!is.na(left) & left > length(tree$tip.label)){
+    # create a new population for the left child
+    env$populations[[left]] <- population(paste0("pop", left),
+                                          time = creation_times[[left]],
+                                          N = population_size,
+                                          parent = parent_population)
+    # continue to recurse through the tree
+    recursion(tree = tree, current_node = left,
+              parent_population = env$populations[[left]],
+              population_size = population_size,
+              env = env,
+              creation_times = creation_times)
+  }
+  # if the right child is a node
+  if (!is.na(right) & right > length(tree$tip.label)){
+    # create a new population for the right child
+    env$populations[[right]] <- population(paste0("pop", right),
+                                          time = creation_times[[right]],
+                                          N = population_size,
+                                          parent = parent_population)
+    # continue to recurse through the tree by only adjusting the current node
+    recursion(tree = tree, current_node = right,
+              parent_population = env$populations[[right]],
+              population_size = population_size,
+              env = env,
+              creation_times = creation_times)
+  }
+}
+
 random_gene_flow <- function(populations, n, rate, simulation_length) {
 
   # create empty gene flow list
@@ -189,166 +327,4 @@ random_gene_flow <- function(populations, n, rate, simulation_length) {
     }
   }
   return(gf)
-}
-
-#' Create populations based on given tree
-#'
-#' Creates a list of slendr populations according to a given tree. An ancestral
-#' population is created, that exists for a specific burn-in time. Then the
-#' populations specified by the tree are added. The root defines the first split
-#' of a population from the ancestral population. It is created at the burn-in
-#' time. The creation times for all other populations are sampled in the
-#' beginning. They are randomly chosen in the interval of one generation after
-#' the burn-in until three generations before the end of the simulation (to
-#' allow gene flow). Starting from the root, the tree is traversed recursively
-#' and a new population is created for every left child of a given node. The
-#' right branch is the branch where the parent population continues. All
-#' populations continue to exist from the time they were created.
-#'
-#' @param tree An ape tree
-#' @param population_size Integer number defining the populations size of all
-#'   populations
-#' @param simulation_length Integer number defining on how long the simulation
-#'   of the populations will last, to scale the edge lengths of the tree
-#'   accordingly
-#' @return List of slendr populations
-#' @examples
-#' tree <- ape::rtree(4)
-#' tree_populations(tree = tree, population_size = 1000, simulation_length = 50)
-#' tree <- ape::rtree(6)
-#' tree_populations(tree = tree, population_size = 200, simulation_length = 500)
-tree_populations <- function(tree, population_size, simulation_length) {
-
-  if (length(tree$tip.label) + tree$Nnode < 3) {
-    stop("At least 2 populations must be created", call. = FALSE)
-  }
-
-  # sample creation times
-  # first possible creation time is 1 generation after the burn-in time
-  # last possible creation time is 3 generation before the simulation ends
-  # (to leave time for one gene flow event)
-  # the number of creation times needed is defined by the amount of nodes in the
-  # tree - 1, because the creation time of the root is already specified by the
-  # burn-in
-  # replace is set to false as only one population can be created at given time
-  creation_times <- sample ((burn_in + 1):(simulation_length - 3),
-                            size = tree$Nnode + length(tree$tip.label) - 1,
-                            replace = FALSE)
-  # the creation time for the root is added
-  creation_times <- append(creation_times, burn_in)
-
-  # the idea now is that the node in the tree with the smallest depth has the
-  # the creation times are sorted to know which is the earliest
-  sorted_creation_times_temp <- sort(creation_times)
-  # get the order of the depths of the node
-  order_depths <- order(ape::node.depth.edgelength(tree))
-  # the order can be used to move the sorted creation times into the position
-  # corresponding to the ordered node depths
-  # the smallest creation time is now at the index of the population with the
-  # smallest depth in the tree
-  sorted_creation_times <- sorted_creation_times_temp[order(order_depths)]
-
-  # create a new environment object (needed to adjust populations in recursion)
-  env <- new.env()
-  # create an empty list of populations within the new environment
-  env$populations <- vector(mode="list", length=tree$Nnode +
-                              length(tree$tip.label) + 1)
-
-  # create the ancestral population in generation 1
-  env$populations[[length(env$populations)]] <- population(paste0("pop", 0),
-                                                           time = 1,
-                                                           N = population_size)
-  # create a new population for first split at root node
-  # creation time is the burn-in variable, the parent is the ancestral population
-  root <- length(tree$tip.label) + 1
-  env$populations[[root]] <- population(paste0("pop", root), time = burn_in,
-                                        N = population_size,
-                                        parent = env$populations[[length(env$populations)]])
-
-  # recurse through tree
-  recursion(tree = tree, current_node = root,
-             parent_population = env$populations[[root]],
-             population_size = population_size,
-             env = env,
-             creation_times = sorted_creation_times)
-
-  # remove empty populations from list
-  env$populations <- env$populations[-which(sapply(env$populations, is.null))]
-
-  return(env$populations)
-}
-
-tree_populations2 <- function(tree, population_size, simulation_length) {
-
-  if (length(tree$tip.label) + tree$Nnode < 3) {
-    stop("At least 2 populations must be created", call. = FALSE)
-  }
-
-  depths <- ape::node.depth.edgelength(tree)
-  scale <- floor((simulation_length-3)/max(depths))
-  # creation times should be the depths of the tree scaled with the simulation length
-  creation_times <- as.integer(depths * scale)
-
-  # create a new environment object (needed to adjust populations in recursion)
-  env <- new.env()
-  # create an empty list of populations within the new environment
-  env$populations <- vector(mode="list", length=tree$Nnode +
-                              length(tree$tip.label) + 1)
-
-  # create the ancestral population in generation 1
-  env$populations[[length(env$populations)]] <- population(paste0("pop", 0),
-                                                           time = 1,
-                                                           N = population_size)
-  # create a new population for first split at root node
-  # creation time is the burn-in variable, the parent is the ancestral population
-  root <- length(tree$tip.label) + 1
-  env$populations[[root]] <- population(paste0("pop", root), time = burn_in,
-                                        N = population_size,
-                                        parent = env$populations[[length(env$populations)]])
-
-  # recurse through tree
-  recursion(tree = tree, current_node = root,
-            parent_population = env$populations[[root]],
-            population_size = population_size,
-            env = env,
-            creation_times = creation_times)
-
-  # remove empty populations from list
-  env$populations <- env$populations[-which(sapply(env$populations, is.null))]
-
-  return(env$populations)
-}
-
-recursion <- function(tree, current_node, parent_population, population_size,
-                       env, creation_times) {
-
-  # find children of current node
-  edge_list <- tree$edge
-  children <- edge_list[edge_list[, 1] == current_node, 2]
-  left <- children[1]
-  right <- children[2]
-
-  # if the left child is a node
-  if (!is.na(left)){
-    # create a new population for the left child
-    env$populations[[left]] <- population(paste0("pop", left),
-                                          time = creation_times[[left]],
-                                          N = population_size,
-                                          parent = parent_population)
-    # continue to recurse through the tree
-    recursion(tree = tree, current_node = left,
-               parent_population = env$populations[[left]],
-               population_size = population_size,
-               env = env,
-               creation_times = creation_times)
-  }
-  # if the right child is a node
-  if (!is.na(right)){
-    # continue to recurse through the tree by only adjusting the current node
-    recursion(tree = tree, current_node = right,
-               parent_population = parent_population,
-               population_size = population_size,
-               env = env,
-               creation_times = creation_times)
-  }
 }
