@@ -75,9 +75,10 @@ tree_populations <- function(tree, population_size, simulation_length) {
                                         N = population_size,
                                         parent = env$populations[[length(env$populations)]])
 
+  parent_populations <- list(env$populations[[root]], env$populations[[length(env$populations)]])
   # recurse through tree
   recursion(tree = tree, current_node = root,
-            parent_population = env$populations[[root]],
+            parent_populations = parent_populations,
             population_size = population_size,
             env = env,
             creation_times = sorted_creation_times)
@@ -119,9 +120,10 @@ tree_populations2 <- function(tree, population_size, simulation_length) {
                                         N = population_size,
                                         parent = env$populations[[length(env$populations)]])
 
+  parent_populations <- list(env$populations[[root]], env$populations[[length(env$populations)]])
   # recurse through tree
   recursion(tree = tree, current_node = root,
-            parent_population = env$populations[[root]],
+            parent_populations = parent_populations,
             population_size = population_size,
             env = env,
             creation_times = creation_times)
@@ -227,9 +229,8 @@ random_model <- function(n_populations, population_size, n_gene_flow,
   return(model)
 }
 
-recursion <- function(tree, current_node, parent_population, population_size,
+recursion <- function(tree, current_node, parent_populations, population_size,
                       env, creation_times) {
-
   # find children of current node
   edge_list <- tree$edge
   children <- edge_list[edge_list[, 1] == current_node, 2]
@@ -242,10 +243,11 @@ recursion <- function(tree, current_node, parent_population, population_size,
     env$populations[[left]] <- population(paste0("pop", left),
                                           time = creation_times[[left]],
                                           N = population_size,
-                                          parent = parent_population)
+                                          parent = parent_populations[[1]])
+    parent_populations2 <- list(env$populations[[left]], parent_populations[[1]])
     # continue to recurse through the tree
     recursion(tree = tree, current_node = left,
-              parent_population = env$populations[[left]],
+              parent_populations = parent_populations2,
               population_size = population_size,
               env = env,
               creation_times = creation_times)
@@ -256,10 +258,12 @@ recursion <- function(tree, current_node, parent_population, population_size,
     env$populations[[right]] <- population(paste0("pop", right),
                                           time = creation_times[[right]],
                                           N = population_size,
-                                          parent = parent_population)
+                                          parent = parent_populations[[2]])
+
+    parent_populations2 <-  list(env$populations[[right]], parent_populations[[2]])
     # continue to recurse through the tree by only adjusting the current node
     recursion(tree = tree, current_node = right,
-              parent_population = env$populations[[right]],
+              parent_populations = parent_populations2,
               population_size = population_size,
               env = env,
               creation_times = creation_times)
