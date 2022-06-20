@@ -1,4 +1,5 @@
-# variable for the length of the ancestral population existing by itself
+# variable for the generation of the first split, defining the length of the
+# ancestral population existing by itself
 burn_in <- 2
 
 #' Create populations based on given tree
@@ -75,7 +76,11 @@ tree_populations <- function(tree, population_size, simulation_length) {
                                         N = population_size,
                                         parent = env$populations[[length(env$populations)]])
 
-  parent_populations <- list(env$populations[[root]], env$populations[[length(env$populations)]])
+  # create list of parent populations for left and right child
+  # left child should have root population as parent
+  # right child should ancestral population as parent
+  parent_populations <- list(env$populations[[root]],
+                             env$populations[[length(env$populations)]])
   # recurse through tree
   recursion(tree = tree, current_node = root,
             parent_populations = parent_populations,
@@ -86,6 +91,7 @@ tree_populations <- function(tree, population_size, simulation_length) {
   # remove empty populations from list
   env$populations <- env$populations[-which(sapply(env$populations, is.null))]
 
+  # return the list of populations
   return(env$populations)
 }
 
@@ -120,7 +126,11 @@ tree_populations2 <- function(tree, population_size, simulation_length) {
                                         N = population_size,
                                         parent = env$populations[[length(env$populations)]])
 
-  parent_populations <- list(env$populations[[root]], env$populations[[length(env$populations)]])
+  # create list of parent populations for left and right child
+  # left child should have root population as parent
+  # right child should ancestral population as parent
+  parent_populations <- list(env$populations[[root]],
+                             env$populations[[length(env$populations)]])
   # recurse through tree
   recursion(tree = tree, current_node = root,
             parent_populations = parent_populations,
@@ -131,6 +141,7 @@ tree_populations2 <- function(tree, population_size, simulation_length) {
   # remove empty populations from list
   env$populations <- env$populations[-which(sapply(env$populations, is.null))]
 
+  # return the list of populations
   return(env$populations)
 }
 
@@ -160,7 +171,10 @@ random_populations <- function(n_populations, population_size,
     stop("At least 2 populations must be created", call. = FALSE)
   }
 
+  # create a random tree with the number of leaves equal to the number of
+  # populations
   tree <- ape::rtree(n_populations)
+  # get the list of populations by calling tree_populations based on the tree
   populations <- tree_populations2(tree, population_size, simulation_length)
   return(populations)
 }
@@ -191,11 +205,16 @@ random_populations <- function(n_populations, population_size,
 tree_model <- function(tree, population_size, n_gene_flow,
                        rate_gene_flow = c(0.01, 0.99), simulation_length) {
 
+  # get the list of populations by calling the tree_populations function
   populations <- tree_populations2(tree, population_size, simulation_length)
+  # get the list of gene flow events by calling the random_gene_flow function
   gf <- random_gene_flow(populations, n_gene_flow, rate_gene_flow,
                          simulation_length)
+  # compile the model based on populations, gene flow events and simulation length
+  # the generation time is set to 1
   model <- compile_model(populations = populations, gene_flow = gf,
                          generation_time = 1, sim_length = simulation_length)
+  # return the created model
   return(model)
 }
 
@@ -223,9 +242,13 @@ tree_model <- function(tree, population_size, n_gene_flow,
 random_model <- function(n_populations, population_size, n_gene_flow,
                          rate_gene_flow = c(0.01, 0.99), simulation_length) {
 
+  # create a random tree with the number of leaves equal to the number of
+  # populations
   tree <- ape::rtree(n_populations)
+  # create the model by calling the tree_model function with the created tree
   model <- tree_model(tree, population_size, n_gene_flow,
                       rate_gene_flow, simulation_length)
+  # return the created model
   return(model)
 }
 
@@ -237,33 +260,40 @@ recursion <- function(tree, current_node, parent_populations, population_size,
   left <- children[1]
   right <- children[2]
 
-  # if the left child is a node
-  if (!is.na(left) & left > length(tree$tip.label)){
+  # if the left child is an internal node
+  if (left > length(tree$tip.label)){
     # create a new population for the left child
     env$populations[[left]] <- population(paste0("pop", left),
                                           time = creation_times[[left]],
                                           N = population_size,
                                           parent = parent_populations[[1]])
-    parent_populations2 <- list(env$populations[[left]], parent_populations[[1]])
+
+    # update list of parent populations for left and right child
+    # left child should have newly created population as parent
+    # right child should have parent of newly created population as parent
+    parent_populations <- list(env$populations[[left]], parent_populations[[1]])
     # continue to recurse through the tree
     recursion(tree = tree, current_node = left,
-              parent_populations = parent_populations2,
+              parent_populations = parent_populations,
               population_size = population_size,
               env = env,
               creation_times = creation_times)
   }
-  # if the right child is a node
-  if (!is.na(right) & right > length(tree$tip.label)){
+  # if the right child is an internal node
+  if (right > length(tree$tip.label)){
     # create a new population for the right child
     env$populations[[right]] <- population(paste0("pop", right),
                                           time = creation_times[[right]],
                                           N = population_size,
                                           parent = parent_populations[[2]])
 
-    parent_populations2 <-  list(env$populations[[right]], parent_populations[[2]])
+    # update list of parent populations for left and right child
+    # left child should have newly created population as parent
+    # right child should have parent of newly created population as parent
+    parent_populations <-  list(env$populations[[right]], parent_populations[[2]])
     # continue to recurse through the tree by only adjusting the current node
     recursion(tree = tree, current_node = right,
-              parent_populations = parent_populations2,
+              parent_populations = parent_populations,
               population_size = population_size,
               env = env,
               creation_times = creation_times)
@@ -327,7 +357,7 @@ random_gene_flow <- function(populations, n, rate, simulation_length) {
 
       # create new gene flow event and add to list
       gf[[i]] <- gene_flow(from = pop1, to = pop2, start = start_gf,
-                           end = end_gf, rate_gf)
+                           end = end_gf, rate = rate_gf)
     }
   }
   return(gf)
