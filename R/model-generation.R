@@ -8,10 +8,16 @@ burn_in <- 2
 #' population is created, that exists for a specific burn-in time. Then the
 #' populations specified by the tree are added. The root defines the first split
 #' of a population from the ancestral population. It is created at the burn-in
-#' time. The creation times for all other populations are sampled in the
-#' beginning. They are randomly chosen in the interval of one generation after
+#' time. There are two possible way to find the creation times for all
+#' populations. The first option is that the creation times are sampled
+#' randomly. They are randomly chosen in the interval of one generation after
 #' the burn-in until three generations before the end of the simulation (to
-#' allow gene flow). Starting from the root, the tree is traversed recursively
+#' allow gene flow). The other option is to scale the edge lengths of the tree,
+#' so that the node with the largest depth is created three generations before
+#' the simulation ends, again allowing one gene flow event. The two options are
+#' regulated with the use_tree_lengths parameter. By default, the creation times
+#' are sampled randomly.
+#' Starting from the root, the tree is traversed recursively
 #' and a new population is created for every left child of a given node. The
 #' right branch is the branch where the parent population continues. All
 #' populations continue to exist from the time they were created.
@@ -22,18 +28,24 @@ burn_in <- 2
 #' @param simulation_length Integer number defining on how long the simulation
 #'   of the populations will last, to scale the edge lengths of the tree
 #'   accordingly
+#' @param use_tree_lengths Specifies the method used to find the creation times
+#'   of the populations. By default they are randomly sampled, but the can also
+#'   be based on the lengths of the tree
 #' @return List of slendr populations
 #' @examples
 #' tree <- ape::rtree(4)
-#' tree_populations(tree = tree, population_size = 1000, simulation_length = 50)
+#' tree_populations(tree = tree, population_size = 200, simulation_length = 500,
+#'   use_tree_lengths = TRUE)
 #' tree <- ape::rtree(6)
-#' tree_populations(tree = tree, population_size = 200, simulation_length = 500)
+#' tree_populations(tree = tree, population_size = 1000, simulation_length = 50)
 tree_populations <- function(tree, population_size, simulation_length,
                              use_tree_lengths = FALSE) {
 
   if (length(tree$tip.label) + tree$Nnode < 3) {
     stop("At least 2 populations must be created", call. = FALSE)
   }
+
+  # find creation times
   if (use_tree_lengths) {
     # get a list of the depths of all nodes in the tree
     depths <- ape::node.depth.edgelength(tree)
@@ -47,9 +59,9 @@ tree_populations <- function(tree, population_size, simulation_length,
     # first possible creation time is 1 generation after the burn-in time
     # last possible creation time is 3 generation before the simulation ends
     # (to leave time for one gene flow event)
-    # the number of creation times needed is defined by the amount of nodes in the
-    # tree - 1, because the creation time of the root is already specified by the
-    # burn-in
+    # the number of creation times needed is defined by the amount of nodes in
+    # the tree - 1, because the creation time of the root is already specified
+    # by the burn-in
     # replace is set to false as only one population can be created at given time
     creation_times <- sample ((burn_in + 1):(simulation_length - 3),
                               size = tree$Nnode + length(tree$tip.label) - 1,
@@ -80,11 +92,12 @@ tree_populations <- function(tree, population_size, simulation_length,
                                                            time = 1,
                                                            N = population_size)
   # create a new population for first split at root node
-  # creation time is the burn-in variable, the parent is the ancestral population
+  # creation time equals burn-in variable, parent is the ancestral population
   root <- length(tree$tip.label) + 1
   env$populations[[root]] <- population(paste0("pop", root), time = burn_in,
                                         N = population_size,
-                                        parent = env$populations[[length(env$populations)]])
+                                        parent = env$populations[[length(
+                                          env$populations)]])
 
   # create list of parent populations for left and right child
   # left child should have root population as parent
@@ -142,8 +155,11 @@ random_populations <- function(n_populations, population_size,
 #'
 #' Creates a slendr model based on a given tree and a given number of gene flow
 #' events. The function \code{tree_populations} is used to get a list of
-#' populations from given tree. Gene flow events between these populations are
-#' created randomly.
+#' populations from given tree. It can be chosed whether the creation times of
+#' the populations should be sampled randomly or be based on the edge lengths of
+#' the tree. This is regulated with the use_tree_lengths parameter. Gene flow
+#' events between these populations are created randomly. The rate of the gene
+#' flow events can either be a fixed value or sampled in a specific range.
 #'
 #' @param tree An ape tree
 #' @param population_size Integer number defining the populations size of all
@@ -153,11 +169,14 @@ random_populations <- function(n_populations, population_size,
 #' @param simulation_length Integer number defining on how long the simulation
 #'   of the populations will last, to scale the edge lengths of the tree
 #'   accordingly
+#' @param use_tree_lengths specifies the method used to find the creation times
+#'   of the populations. By default they are randomly sampled, but the can also
+#'   be based on the lengths of the tree
 #' @return A slendr model
 #' @examples
 #' tree <- ape::rtree(4)
 #' tree_model(tree = tree, population_size = 1000, n_gene_flow = 3,
-#'   rate_gene_flow = 0.5, simulation_length = 100)
+#'   rate_gene_flow = 0.5, simulation_length = 100, use_tree_lengths = TRUE)
 #' tree <- ape::rtree(6)
 #' tree_model(tree = tree, population_size = 200, n_gene_flow = 4,
 #'   rate_gene_flow = c(0.2, 0.9), simulation_length = 1000)
